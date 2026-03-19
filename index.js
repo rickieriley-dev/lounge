@@ -15,8 +15,29 @@ const admin = require('firebase-admin');
 
 // ── Firebase init ─────────────────────────────────────────────
 // Set FIREBASE_SERVICE_ACCOUNT env var in Railway dashboard
-// (paste the entire JSON content of your service account key)
-const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+// (paste the entire minified JSON content of your service account key)
+const raw = process.env.FIREBASE_SERVICE_ACCOUNT;
+
+if (!raw) {
+  console.error('❌ FIREBASE_SERVICE_ACCOUNT env variable is not set!');
+  console.error('   Go to Railway dashboard → Variables → add FIREBASE_SERVICE_ACCOUNT');
+  process.exit(1);
+}
+
+let serviceAccount;
+try {
+  serviceAccount = JSON.parse(raw);
+} catch (e) {
+  console.error('❌ FIREBASE_SERVICE_ACCOUNT is not valid JSON:', e.message);
+  console.error('   Make sure you pasted the full minified service account JSON (no line breaks).');
+  process.exit(1);
+}
+
+if (!process.env.FIREBASE_DATABASE_URL) {
+  console.error('❌ FIREBASE_DATABASE_URL env variable is not set!');
+  console.error('   Go to Railway dashboard → Variables → add FIREBASE_DATABASE_URL');
+  process.exit(1);
+}
 
 admin.initializeApp({
   credential:  admin.credential.cert(serviceAccount),
