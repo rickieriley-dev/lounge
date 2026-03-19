@@ -15,29 +15,8 @@ const admin = require('firebase-admin');
 
 // ── Firebase init ─────────────────────────────────────────────
 // Set FIREBASE_SERVICE_ACCOUNT env var in Railway dashboard
-// (paste the entire minified JSON content of your service account key)
-const raw = process.env.FIREBASE_SERVICE_ACCOUNT;
-
-if (!raw) {
-  console.error('❌ FIREBASE_SERVICE_ACCOUNT env variable is not set!');
-  console.error('   Go to Railway dashboard → Variables → add FIREBASE_SERVICE_ACCOUNT');
-  process.exit(1);
-}
-
-let serviceAccount;
-try {
-  serviceAccount = JSON.parse(raw);
-} catch (e) {
-  console.error('❌ FIREBASE_SERVICE_ACCOUNT is not valid JSON:', e.message);
-  console.error('   Make sure you pasted the full minified service account JSON (no line breaks).');
-  process.exit(1);
-}
-
-if (!process.env.FIREBASE_DATABASE_URL) {
-  console.error('❌ FIREBASE_DATABASE_URL env variable is not set!');
-  console.error('   Go to Railway dashboard → Variables → add FIREBASE_DATABASE_URL');
-  process.exit(1);
-}
+// (paste the entire JSON content of your service account key)
+const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 
 admin.initializeApp({
   credential:  admin.credential.cert(serviceAccount),
@@ -142,9 +121,12 @@ async function runRound() {
       console.log(`\n[round] ▶ Starting new round — winner will be slot ${winIdx} (${SLOTS[winIdx].label})`);
 
       // ── Write round start to Firebase ──────────────────────
+      // NOTE: winSlotIdx is intentionally NOT written here during betting phase
+      // to prevent clients from reading the winner before the spin.
+      // It is revealed only when the spinning phase starts.
       await gameRef.update({
         roundStartTime: roundStart,
-        winSlotIdx:     winIdx,
+        winSlotIdx:     -1,        // hidden during betting
         paidOut:        false,
         bets:           {},
         betters:        {},
@@ -157,9 +139,9 @@ async function runRound() {
       console.log('[round] ⏳ Betting phase (20s)...');
       await sleep(BET_MS);
 
-      // ── Spinning phase (7.8s) ───────────────────────────────
+      // ── Spinning phase (7.8s) — reveal winner now ───────────
       console.log(`[round] 🎰 Spinning... winner = slot ${winIdx} (${SLOTS[winIdx].label})`);
-      await gameRef.update({ phase: 'spinning' });
+      await gameRef.update({ phase: 'spinning', winSlotIdx: winIdx });
       await sleep(SPIN_MS);
 
       // ── Process payout ──────────────────────────────────────
