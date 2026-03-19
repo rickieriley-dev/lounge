@@ -121,12 +121,17 @@ async function runRound() {
       console.log(`\n[round] ▶ Starting new round — winner will be slot ${winIdx} (${SLOTS[winIdx].label})`);
 
       // ── Write round start to Firebase ──────────────────────
-      // NOTE: winSlotIdx is intentionally NOT written here during betting phase
+      // Start the betting timer FIRST before awaiting Firebase write.
+      // This ensures betting phase is always exactly BET_MS (20s),
+      // not 20s + Firebase write latency.
+      const betTimer = sleep(BET_MS);
+
+      // NOTE: winSlotIdx is intentionally -1 here during betting phase
       // to prevent clients from reading the winner before the spin.
       // It is revealed only when the spinning phase starts.
       await gameRef.update({
         roundStartTime: roundStart,
-        winSlotIdx:     -1,        // hidden during betting
+        winSlotIdx:     -1,
         paidOut:        false,
         bets:           {},
         betters:        {},
@@ -137,7 +142,7 @@ async function runRound() {
 
       // ── Betting phase (20s) ─────────────────────────────────
       console.log('[round] ⏳ Betting phase (20s)...');
-      await sleep(BET_MS);
+      await betTimer; // wait for the full 20s from roundStart
 
       // ── Spinning phase (7.8s) — reveal winner now ───────────
       console.log(`[round] 🎰 Spinning... winner = slot ${winIdx} (${SLOTS[winIdx].label})`);
