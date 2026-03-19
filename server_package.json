@@ -1,0 +1,15 @@
+{
+  "name": "roulette-server",
+  "version": "1.0.0",
+  "description": "Greedy ProMax Roulette Game Server",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.7.0"
+  }
+}
