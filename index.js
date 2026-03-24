@@ -7,6 +7,7 @@
 const admin   = require('firebase-admin');
 const http    = require('http');
 const crypto  = require('crypto');
+const cron    = require('node-cron');
 
 // ── Firebase init ─────────────────────────────────────────────
 const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
@@ -86,6 +87,21 @@ const server = http.createServer(async (req, res) => {
   // ── Health check ─────────────────────────────────────────────
   if (method === 'GET' && url.pathname === '/health') {
     return reply(200, { status: 'ok', server: 'lounge-railway' });
+  }
+
+  // ── POST /reset-leaderboard/:period ──────────────────────────
+  // Manually trigger a leaderboard reset (protected by RESET_SECRET)
+  // Usage: POST /reset-leaderboard/daily  (or weekly / monthly)
+  //        Header: x-reset-secret: <your RESET_SECRET env var>
+  const resetMatch = url.pathname.match(/^\/reset-leaderboard\/(daily|weekly|monthly)$/);
+  if (method === 'POST' && resetMatch) {
+    if (req.headers['x-reset-secret'] !== process.env.RESET_SECRET) {
+      return reply(401, { error: 'Unauthorized' });
+    }
+    const period = resetMatch[1];
+    reply(200, { message: `${period} leaderboard reset triggered` });
+    resetLeaderboard(period).catch(console.error);
+    return;
   }
 
   // ── POST /create-payment ─────────────────────────────────────
@@ -337,3 +353,57 @@ async function runRound() {
 
 console.log('🎰 Lounge Game Server + PayMongo starting...');
 runRound();
+
+// ============================================================
+// LEADERBOARD RESET (daily / weekly / monthly)
+// All schedules in UTC targeting 12:00 AM Manila (UTC+8)
+// ============================================================
+
+const LEADERBOARD_TYPES = ['wealth', 'charm', 'room'];
+
+async function resetLeaderboard(period) {
+  const now    = new Date();
+  // Date key in Manila time
+  const manila = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+  const dateKey = manila.toISOString().slice(0, 10); // "2025-03-24"
+
+  console.log(`\n[leaderboard] ⏰ Starting ${period.toUpperCase()} reset (${dateKey})...`);
+
+  for (const type of LEADERBOARD_TYPES) {
+    const livePath    = `leaderboard/${type}/${period}`;
+    const archivePath = `leaderboard_archive/${period}/${dateKey}/${type}`;
+    try {
+      const snap = await db.ref(livePath).get();
+      if (snap.exists()) {
+        await db.ref(archivePath).set(snap.val());
+        console.log(`[leaderboard]   ✓ Archived  → ${archivePath}`);
+      }
+      await db.ref(livePath).remove();
+      console.log(`[leaderboard]   ✓ Cleared   ${livePath}`);
+    } catch (err) {
+      console.error(`[leaderboard]   ✗ FAILED    ${livePath}:`, err.message);
+    }
+  }
+
+  console.log(`[leaderboard] ✅ ${period.toUpperCase()} reset done.\n`);
+}
+
+// Daily  — every day at 16:00 UTC = 12:00 AM Manila
+cron.schedule('0 16 * * *', () => {
+  resetLeaderboard('daily').catch(console.error);
+}, { timezone: 'UTC' });
+
+// Weekly — every Sunday 16:00 UTC = Monday 12:00 AM Manila
+cron.schedule('0 16 * * 0', () => {
+  resetLeaderboard('weekly').catch(console.error);
+}, { timezone: 'UTC' });
+
+// Monthly — runs daily at 16:00 UTC, only fires on last day of the month
+cron.schedule('0 16 * * *', () => {
+  const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
+  if (tomorrow.getUTCDate() === 1) {
+    resetLeaderboard('monthly').catch(console.error);
+  }
+}, { timezone: 'UTC' });
+
+console.log('📅 Leaderboard reset schedules active (daily/weekly/monthly @ 12:00 AM Manila)');
