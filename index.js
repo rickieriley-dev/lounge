@@ -389,21 +389,38 @@ async function resetLeaderboard(period) {
 }
 
 // Daily  — every day at 16:00 UTC = 12:00 AM Manila
-// --- CRON SCHEDULES (8:00 AM Manila = 00:00 UTC) ---
 
-// Daily — Every day at 00:00 UTC
-cron.schedule('0 0 * * *', () => {
+cron.schedule('0 16 * * *', () => {
+
   resetLeaderboard('daily').catch(console.error);
+
 }, { timezone: 'UTC' });
 
-// Weekly — Every Monday at 00:00 UTC
-cron.schedule('0 0 * * 1', () => {
+
+
+// Weekly — every Sunday 16:00 UTC = Monday 12:00 AM Manila
+
+cron.schedule('0 16 * * 0', () => {
+
   resetLeaderboard('weekly').catch(console.error);
+
 }, { timezone: 'UTC' });
 
-// Monthly — 1st day of every month at 00:00 UTC
-cron.schedule('0 0 1 * *', () => {
-  resetLeaderboard('monthly').catch(console.error);
+
+
+// Monthly — runs daily at 16:00 UTC, only fires on last day of the month
+
+cron.schedule('0 16 * * *', () => {
+
+  const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+  if (tomorrow.getUTCDate() === 1) {
+
+    resetLeaderboard('monthly').catch(console.error);
+
+  }
+
 }, { timezone: 'UTC' });
+
 
 console.log('📅 Leaderboard reset schedules active (daily/weekly/monthly @ 12:00 AM Manila)');
