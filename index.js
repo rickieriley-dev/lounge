@@ -274,14 +274,50 @@ const SLOTS = [
   { label: 'x10', multiplier: 10 },
   { label: 'x15', multiplier: 15 },
 ];
-
+let lowWinStreak = 0;
 function pickWinner() {
   const r = Math.floor(Math.random() * 100);
-  if (r < 85) return [2, 3, 4, 5][Math.floor(Math.random() * 4)];
-  if (r < 92) return 6;
-  if (r < 97) return 7;
-  if (r < 99) return 0;
-  return 1;
+  let winner;
+
+  // 1. PITY SYSTEM: Kung 5 rounds na puro x5 lang ang lumalabas, 
+  // pipilitin nating lumabas ang x10, x15, x25, o x45.
+  if (lowWinStreak >= 5) {
+    console.log("[round] 🛡️ PITY SYSTEM: Big win forced for the players!");
+    const highWins = [6, 7, 0, 1]; // x10, x15, x25, x45
+    winner = highWins[Math.floor(Math.random() * highWins.length)];
+    lowWinStreak = 0; // Reset after pity win
+    return winner;
+  }
+
+  // 2. LUCKY ROUND: 10% chance na magkaroon ng "Swerte" round (Buffed odds)
+  const isLuckyRound = Math.random() < 0.10; 
+  if (isLuckyRound) {
+    console.log("[round] ✨ LUCKY ROUND: Odds are boosted!");
+    if (r < 40) winner = [2, 3, 4, 5][Math.floor(Math.random() * 4)]; // 40% only for x5
+    else if (r < 70) winner = 6; // 30% for x10
+    else if (r < 85) winner = 7; // 15% for x15
+    else if (r < 95) winner = 0; // 10% for x25
+    else winner = 1;             // 5% for x45
+  } 
+  // 3. NORMAL ROUND (Slightly better than original)
+  else {
+    if (r < 75) winner = [2, 3, 4, 5][Math.floor(Math.random() * 4)]; // 75% for x5
+    else if (r < 88) winner = 6; // 13% for x10
+    else if (r < 95) winner = 7; // 7% for x15
+    else if (r < 98) winner = 0; // 3% for x25
+    else winner = 1;             // 2% for x45
+  }
+
+  // Update lowWinStreak counter
+  // Kung ang lumabas ay x5 (index 2 to 5), dagdag sa streak. 
+  // Kapag mataas ang nakuha, reset sa 0.
+  if (winner >= 2 && winner <= 5) {
+    lowWinStreak++;
+  } else {
+    lowWinStreak = 0;
+  }
+
+  return winner;
 }
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
